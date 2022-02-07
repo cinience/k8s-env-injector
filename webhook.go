@@ -51,6 +51,8 @@ type Config struct {
 	Env               []corev1.EnvVar             `yaml:"env"`
 	DnsOptions        []corev1.PodDNSConfigOption `yaml:"dnsOptions,omitempty"`
 	NodeAffinityTerms []corev1.NodeSelectorTerm   `yaml:"nodeAffinityTerms,omitempty"`
+	Annotations       map[string]string           `yaml:"annotations,omitempty"`
+	Labels            map[string]string           `yaml:"labels,omitempty"`
 }
 
 type patchOperation struct {
@@ -210,14 +212,45 @@ func updateAnnotation(target map[string]string, annotations map[string]string) (
 		} else if target[k] == "" {
 			target = map[string]string{}
 			patch = append(patch, patchOperation{
-				Op:    "add",
-				Path:  "/metadata/annotations/" + k,
+				Op: "add",
+				// "~"(tilde) is encoded as "~0" and "/"(forward slash) is encoded as "~1".
+				// https://www.rfc-editor.org/rfc/rfc6901#section-3
+				Path:  "/metadata/annotations/" + strings.ReplaceAll(k, "/", "~1"),
 				Value: v,
 			})
 		} else {
 			patch = append(patch, patchOperation{
 				Op:    "replace",
-				Path:  "/metadata/annotations/" + k,
+				Path:  "/metadata/annotations/" + strings.ReplaceAll(k, "/", "~1"),
+				Value: v,
+			})
+		}
+	}
+	return patch
+}
+
+func updateLabels(target map[string]string, labels map[string]string) (patch []patchOperation) {
+	for k, v := range labels {
+		if target == nil {
+			target = map[string]string{}
+			patch = append(patch, patchOperation{
+				Op:   "add",
+				Path: "/metadata/labels",
+				Value: map[string]string{
+					k: v,
+				},
+			})
+		} else if target[k] == "" {
+			target = map[string]string{}
+			patch = append(patch, patchOperation{
+				Op:    "add",
+				Path:  "/metadata/labels/" + strings.ReplaceAll(k, "/", "~1"),
+				Value: v,
+			})
+		} else {
+			patch = append(patch, patchOperation{
+				Op:    "replace",
+				Path:  "/metadata/labels/" + strings.ReplaceAll(k, "/", "~1"),
 				Value: v,
 			})
 		}
@@ -255,8 +288,17 @@ func createPatch(pod *corev1.Pod, envConfig *Config, annotations map[string]stri
 		patches = append(patches, addNodeAffinityTerms(pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms,
 			envConfig.NodeAffinityTerms, fmt.Sprintf("/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms"))...)
 	}
-	patches = append(patches, updateAnnotation(pod.Annotations, annotations)...)
 
+	if len(envConfig.Labels) > 0 {
+		patches = append(patches, updateLabels(pod.Labels, envConfig.Labels)...)
+	}
+
+	if len(envConfig.Annotations) > 0 {
+		for k, v := range envConfig.Annotations {
+			annotations[k] = v
+		}
+	}
+	patches = append(patches, updateAnnotation(pod.Annotations, annotations)...)
 	return json.Marshal(patches)
 }
 
