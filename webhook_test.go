@@ -17,12 +17,12 @@ func TestLoadConfig(t *testing.T) {
 		{"test/env_test_1.yaml",
 			&Config{
 				[]corev1.EnvVar{{Name: "CLUSTER_NAME", Value: "aks-test-01", ValueFrom: nil}},
-				nil, nil},
+				nil, nil, nil, nil},
 		},
 		{"test/env_test_2.yaml",
 			&Config{[]corev1.EnvVar{{Name: "CLUSTER_NAME", Value: "aks-test-01", ValueFrom: nil},
 				{Name: "SUBSCRIPTION", Value: "subscription-00", ValueFrom: nil}},
-				nil, nil},
+				nil, nil, nil, nil},
 		},
 		{"test/env_test_3.yaml",
 			&Config{[]corev1.EnvVar{{Name: "CLUSTER_NAME", Value: "aks-test-01", ValueFrom: nil},
@@ -30,16 +30,24 @@ func TestLoadConfig(t *testing.T) {
 				[]corev1.PodDNSConfigOption{{Name: "ndots", Value: &ndotsVal},
 					{Name: "single-request-reopen", Value: nil},
 					{Name: "use-vc", Value: nil}},
-				nil},
+				nil, nil, nil},
 		},
 		{"test/env_test_4.yaml",
-			&Config{[]corev1.EnvVar{{Name: "CLUSTER_NAME", Value: "aks-test-01", ValueFrom: nil},
+			&Config{Env: []corev1.EnvVar{{Name: "CLUSTER_NAME", Value: "aks-test-01", ValueFrom: nil},
 				{Name: "SUBSCRIPTION", Value: "subscription-00", ValueFrom: nil}},
-				[]corev1.PodDNSConfigOption{{Name: "ndots", Value: &ndotsVal},
+				DnsOptions: []corev1.PodDNSConfigOption{{Name: "ndots", Value: &ndotsVal},
 					{Name: "single-request-reopen", Value: nil},
 					{Name: "use-vc", Value: nil}},
-				[]corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{
+				Annotations: nil,
+				Labels:      nil,
+				NodeAffinityTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{
 					{Key: "agentpool", Operator: corev1.NodeSelectorOpIn, Values: []string{"ubuntu18", "ubuntu1804"}}}}}},
+		},
+		{"test/env_test_5.yaml",
+			&Config{
+				Env:               []corev1.EnvVar{{Name: "CLUSTER_NAME", Value: "aks-test-01", ValueFrom: nil}},
+				NodeAffinityTerms: nil,
+				DnsOptions:        nil, Annotations: nil, Labels: nil},
 		},
 	}
 
