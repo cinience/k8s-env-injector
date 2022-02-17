@@ -198,8 +198,15 @@ func addNodeAffinityTerms(target, nodeAffinityTerms []corev1.NodeSelectorTerm, b
 	return patch
 }
 
-func updateAnnotation(target map[string]string, annotations map[string]string) (patch []patchOperation) {
+func updateAnnotation(target map[string]string, annotations map[string]string) (patch []patchOperation, err error) {
 	for k, v := range annotations {
+		oldValue := v
+		if target != nil && strings.HasPrefix(v, "$") {
+			v = target[strings.TrimPrefix(v, "$")]
+		}
+		if v == "" {
+			return nil, fmt.Errorf("parse annotation %s:%s failed", k, oldValue)
+		}
 		if target == nil {
 			target = map[string]string{}
 			patch = append(patch, patchOperation{
@@ -226,11 +233,19 @@ func updateAnnotation(target map[string]string, annotations map[string]string) (
 			})
 		}
 	}
-	return patch
+	return patch, nil
 }
 
-func updateLabels(target map[string]string, labels map[string]string) (patch []patchOperation) {
+func updateLabels(target map[string]string, labels map[string]string) (patch []patchOperation, err error) {
+	glog.Infof("updateLabels %v \n", target)
 	for k, v := range labels {
+		oldValue := v
+		if target != nil && strings.HasPrefix(v, "$") {
+			v = target[strings.TrimPrefix(v, "$")]
+		}
+		if v == "" {
+			return nil, fmt.Errorf("parse label %s:%s failed", k, oldValue)
+		}
 		if target == nil {
 			target = map[string]string{}
 			patch = append(patch, patchOperation{
@@ -255,7 +270,7 @@ func updateLabels(target map[string]string, labels map[string]string) (patch []p
 			})
 		}
 	}
-	return patch
+	return patch, nil
 }
 
 // createPatch creates a mutation patch for resources
@@ -290,7 +305,12 @@ func createPatch(pod *corev1.Pod, envConfig *Config, annotations map[string]stri
 	}
 
 	if len(envConfig.Labels) > 0 {
-		patches = append(patches, updateLabels(pod.Labels, envConfig.Labels)...)
+		patchLabes, err := updateLabels(pod.Labels, envConfig.Labels)
+		if err != nil {
+			glog.Errorf("")
+			return nil, err
+		}
+		patches = append(patches, patchLabes...)
 	}
 
 	if len(envConfig.Annotations) > 0 {
@@ -298,7 +318,12 @@ func createPatch(pod *corev1.Pod, envConfig *Config, annotations map[string]stri
 			annotations[k] = v
 		}
 	}
-	patches = append(patches, updateAnnotation(pod.Annotations, annotations)...)
+
+	patchAnnotations, err := updateAnnotation(pod.Annotations, annotations)
+	if err != nil {
+		return nil, err
+	}
+	patches = append(patches, patchAnnotations...)
 	return json.Marshal(patches)
 }
 
@@ -329,6 +354,7 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 	annotations := map[string]string{admissionWebhookAnnotationStatusKey: "injected"}
 	patchBytes, err := createPatch(&pod, whsvr.envConfig, annotations)
 	if err != nil {
+		glog.Errorf("createPatch failed, err:%v\n", err.Error())
 		return &v1beta1.AdmissionResponse{
 			Result: &metav1.Status{
 				Message: err.Error(),

@@ -1,8 +1,8 @@
 apiVersion: v1
 appVersion: "1.0"
 description: A Helm chart for kubernetes environment injector mutating webhook
-name: env-injector-webhook
-home: https://github.com/hmcts/k8s-env-injector
+name: aadvance-injector
+home: https://github.com/cinience/k8s-env-injector
 version: 0.1.0
 maintainers:
-  - name: HMCTS Platform engineering team
+  - name: cinience
