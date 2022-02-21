@@ -3,8 +3,8 @@ FROM golang:1.17-buster as build
 WORKDIR /go/src/app
 ADD . /go/src/app
 RUN go get -u -t ./...
+RUN go env -w GOPROXY=https://goproxy.cn,direct
 RUN CGO_ENABLED=0 GOOS=linux GO111MODULE="on" go build -a -installsuffix cgo -o /go/bin/app/k8s-env-injector .
-
 
 FROM gcr.io/distroless/static
 

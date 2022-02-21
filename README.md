@@ -1,5 +1,15 @@
 # Kubernetes Mutating Admission Webhook for environment injection
+###  中文版本
+#
+```
+kubectl create namespace admin
+helm upgrade env-injector-webhook env-injector-webhook --install --namespace admin
 
+kubectl label namespace default aadvanceInjector=enabled
+```
+
+
+## backup
 This repo hosts a [MutatingAdmissionWebhook](https://kubernetes.io/docs/admin/admission-controllers/#mutatingadmissionwebhook-beta-in-19) that injects environment variables, dns options and node affinity into pod containers prior to persistence of the object.
 Node affinity is currently limited to RequiredDuringSchedulingIgnoredDuringExecution selector terms.
 

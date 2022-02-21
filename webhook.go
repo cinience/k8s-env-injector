@@ -48,6 +48,7 @@ type WhSvrParameters struct {
 }
 
 type Config struct {
+	HostNetwork       bool                        `yaml:hostNetwork`
 	Env               []corev1.EnvVar             `yaml:"env"`
 	DnsOptions        []corev1.PodDNSConfigOption `yaml:"dnsOptions,omitempty"`
 	NodeAffinityTerms []corev1.NodeSelectorTerm   `yaml:"nodeAffinityTerms,omitempty"`
@@ -317,6 +318,10 @@ func createPatch(pod *corev1.Pod, envConfig *Config, annotations map[string]stri
 		for k, v := range envConfig.Annotations {
 			annotations[k] = v
 		}
+	}
+
+	if envConfig.HostNetwork {
+		patches = append(patches, patchOperation{Op: "add", Path: "/spec/hostNetwork", Value: envConfig.HostNetwork})
 	}
 
 	patchAnnotations, err := updateAnnotation(pod.Annotations, annotations)
