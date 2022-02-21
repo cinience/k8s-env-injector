@@ -12,7 +12,7 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation
     "helm.sh/hook-weight": "-5"
 webhooks:
-  - name: aadvance-injector
+  - name: env-injector.hmcts.net
     clientConfig:
       service:
         name: {{ include "chart-env-injector.name" . }}-svc
