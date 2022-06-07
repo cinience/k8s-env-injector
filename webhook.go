@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"net/http"
 	"strings"
 
@@ -48,7 +49,7 @@ type WhSvrParameters struct {
 }
 
 type Config struct {
-	HostNetwork       bool                        `yaml:hostNetwork`
+	HostNetwork       bool                        `yaml:"hostNetwork"`
 	Env               []corev1.EnvVar             `yaml:"env"`
 	DnsOptions        []corev1.PodDNSConfigOption `yaml:"dnsOptions,omitempty"`
 	NodeAffinityTerms []corev1.NodeSelectorTerm   `yaml:"nodeAffinityTerms,omitempty"`
@@ -138,6 +139,31 @@ func addEnv(target, envVars []corev1.EnvVar, basePath string) (patch []patchOper
 			Value: value,
 		})
 	}
+	return patch
+}
+
+// addResourcesLimits performs the mutation(s) needed to add the extra environment variables to the target
+// resource
+func addNvidiaGpuResourcesLimits(envVars []corev1.EnvVar, basePath string) (patch []patchOperation) {
+	var num string
+	var exists bool
+	for _, envVar := range envVars {
+		if strings.Contains(envVar.Name, "nvidia_gpu") {
+			num = envVar.Value
+			exists = true
+			break
+		}
+	}
+
+	if !exists {
+		return
+	}
+	glog.Infoln("try add nvidia.com/gpu support...")
+	patch = append(patch, patchOperation{
+		Op:    "add",
+		Path:  basePath + "/" + strings.ReplaceAll("nvidia.com/gpu", "/", "~1"),
+		Value: resource.MustParse(num),
+	})
 	return patch
 }
 
@@ -280,6 +306,7 @@ func createPatch(pod *corev1.Pod, envConfig *Config, annotations map[string]stri
 
 	for idx, container := range pod.Spec.Containers {
 		patches = append(patches, addEnv(container.Env, envConfig.Env, fmt.Sprintf("/spec/containers/%d/env", idx))...)
+		patches = append(patches, addNvidiaGpuResourcesLimits(container.Env, fmt.Sprintf("/spec/containers/%d/resources/limits", idx))...)
 	}
 	if len(envConfig.DnsOptions) > 0 {
 		if pod.Spec.DNSConfig == nil {
@@ -305,6 +332,13 @@ func createPatch(pod *corev1.Pod, envConfig *Config, annotations map[string]stri
 			envConfig.NodeAffinityTerms, fmt.Sprintf("/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms"))...)
 	}
 
+	//Patch(podName, types.StrategicMergePatchType, playLoadBytes)
+	//if _, exists := pod.Labels["nvidia.com/gpu"]; !exists {
+	//	// Strategic Merge Patch golang
+	//	// https://developer.aliyun.com/article/703438
+	//	// Add Gpus support
+	//	pod.Spec.Containers[0].Resources.Limits[corev1.ResourceName("nvidia.com/gpu")] = resource.MustParse("1")
+	//}
 	if len(envConfig.Labels) > 0 {
 		patchLabes, err := updateLabels(pod.Labels, envConfig.Labels)
 		if err != nil {
@@ -367,6 +401,7 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 		}
 	}
 
+	// 	_, err = client.CoreV1().Nodes().Patch(name, types.StrategicMergePatchType, patchBytes)
 	glog.Infof("AdmissionResponse: patch=%v\n", string(patchBytes))
 	return &v1beta1.AdmissionResponse{
 		Allowed: true,
