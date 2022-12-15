@@ -49,12 +49,17 @@ type WhSvrParameters struct {
 }
 
 type Config struct {
-	HostNetwork       bool                        `yaml:"hostNetwork"`
-	Env               []corev1.EnvVar             `yaml:"env"`
-	DnsOptions        []corev1.PodDNSConfigOption `yaml:"dnsOptions,omitempty"`
-	NodeAffinityTerms []corev1.NodeSelectorTerm   `yaml:"nodeAffinityTerms,omitempty"`
-	Annotations       map[string]string           `yaml:"annotations,omitempty"`
-	Labels            map[string]string           `yaml:"labels,omitempty"`
+	ImagePullSecrets string          `yaml:"imagePullSecrets,omitempty"`
+	HostNetwork      bool            `yaml:"hostNetwork"`
+	Env              []corev1.EnvVar `yaml:"env"`
+
+	DnsPolicy  string                      `yaml:"dnsPolicy,omitempty"`
+	DnsConfig  *corev1.PodDNSConfig        `yaml:"dnsConfig,omitempty"`
+	DnsOptions []corev1.PodDNSConfigOption `yaml:"dnsOptions,omitempty"`
+
+	NodeAffinityTerms []corev1.NodeSelectorTerm `yaml:"nodeAffinityTerms,omitempty"`
+	Annotations       map[string]string         `yaml:"annotations,omitempty"`
+	Labels            map[string]string         `yaml:"labels,omitempty"`
 }
 
 type patchOperation struct {
@@ -308,13 +313,41 @@ func createPatch(pod *corev1.Pod, envConfig *Config, annotations map[string]stri
 		patches = append(patches, addEnv(container.Env, envConfig.Env, fmt.Sprintf("/spec/containers/%d/env", idx))...)
 		patches = append(patches, addNvidiaGpuResourcesLimits(container.Env, fmt.Sprintf("/spec/containers/%d/resources/limits", idx))...)
 	}
-	if len(envConfig.DnsOptions) > 0 {
+
+	if envConfig.DnsPolicy != "" {
+		vaild := true
+		if envConfig.DnsPolicy == "None" {
+			if envConfig.DnsConfig == nil || len(envConfig.DnsConfig.Nameservers) == 0 {
+				vaild = false
+				glog.Errorf("DnsPolicy is None ,you must config dnsConfig.nameservers")
+			}
+		}
+		if vaild {
+			if pod.Spec.DNSPolicy == "" {
+				patches = append(patches, patchOperation{Op: "add", Path: "/spec/dnsPolicy", Value: envConfig.DnsPolicy})
+			} else {
+				patches = append(patches, patchOperation{Op: "replace", Path: "/spec/dnsPolicy", Value: envConfig.DnsPolicy})
+			}
+		}
+	}
+
+	if envConfig.DnsConfig != nil {
 		if pod.Spec.DNSConfig == nil {
 			pod.Spec.DNSConfig = &corev1.PodDNSConfig{}
-			patches = append(patches, patchOperation{Op: "add", Path: "/spec/dnsConfig", Value: corev1.PodDNSConfig{}})
+			patches = append(patches, patchOperation{Op: "add", Path: "/spec/dnsConfig", Value: envConfig.DnsConfig})
+		} else {
+			patches = append(patches, patchOperation{Op: "replace", Path: "/spec/dnsConfig", Value: envConfig.DnsConfig})
 		}
-		patches = append(patches, addDnsOptions(pod.Spec.DNSConfig.Options, envConfig.DnsOptions, fmt.Sprintf("/spec/dnsConfig/options"))...)
 	}
+
+	//if len(envConfig.DnsOptions) > 0 {
+	//	if pod.Spec.DNSConfig == nil {
+	//		pod.Spec.DNSConfig = &corev1.PodDNSConfig{}
+	//		patches = append(patches, patchOperation{Op: "add", Path: "/spec/dnsConfig", Value: corev1.PodDNSConfig{}})
+	//	}
+	//	patches = append(patches, addDnsOptions(pod.Spec.DNSConfig.Options, envConfig.DnsOptions, fmt.Sprintf("/spec/dnsConfig/options"))...)
+	//}
+
 	if len(envConfig.NodeAffinityTerms) > 0 {
 		if pod.Spec.Affinity == nil {
 			pod.Spec.Affinity = &corev1.Affinity{}
@@ -356,6 +389,10 @@ func createPatch(pod *corev1.Pod, envConfig *Config, annotations map[string]stri
 
 	if envConfig.HostNetwork {
 		patches = append(patches, patchOperation{Op: "add", Path: "/spec/hostNetwork", Value: envConfig.HostNetwork})
+	}
+
+	if envConfig.ImagePullSecrets != "" {
+		patches = append(patches, patchOperation{Op: "add", Path: "/spec/imagePullSecrets", Value: []corev1.LocalObjectReference{{Name: envConfig.ImagePullSecrets}}})
 	}
 
 	patchAnnotations, err := updateAnnotation(pod.Annotations, annotations)

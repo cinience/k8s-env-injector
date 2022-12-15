@@ -45,3 +45,7 @@ spec:
         - name: webhook-config
           configMap:
             name: {{ include "chart-env-injector.name" . }}-configmap
+      tolerations:
+          - effect: NoSchedule
+            key: node-role.alibabacloud.com/addon
+            operator: Exists

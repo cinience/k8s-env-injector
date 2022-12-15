@@ -1,4 +1,4 @@
-image: registry.cn-shanghai.aliyuncs.com/cinience/k8s-injector:0.0.1
+image: registry.cn-shanghai.aliyuncs.com/cinience/k8s-injector:0.0.2
 replicas: 1
 environment:
   CLUSTER_NAME: ask-test-01

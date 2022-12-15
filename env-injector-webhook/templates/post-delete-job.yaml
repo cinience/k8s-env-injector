@@ -33,3 +33,7 @@ spec:
           configMap:
             name: {{ include "chart-env-injector.name" . }}-cleanup-config
             defaultMode: 0755
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.alibabacloud.com/addon
+          operator: Exists

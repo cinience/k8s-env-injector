@@ -8,6 +8,27 @@ helm upgrade env-injector-webhook env-injector-webhook --install --namespace adm
 kubectl label namespace default aadvanceInjector=enabled
 ```
 
+```yaml
+env:      
+  - name: CLUSTER_NAME
+    value: "ask-test-01"
+dnsPolicy: None
+dnsConfig:
+    nameservers: ["192.168.89.232"]
+    searches:						
+    - default.svc.cluster.local
+    - svc.cluster.local
+    - cluster.local
+    options:
+    - name: ndots
+      value: "5"
+dnsOptions:      
+  - name: ndots
+    value: "3"
+imagePullSecrets: meta-link
+
+
+```
 
 ## backup
 This repo hosts a [MutatingAdmissionWebhook](https://kubernetes.io/docs/admin/admission-controllers/#mutatingadmissionwebhook-beta-in-19) that injects environment variables, dns options and node affinity into pod containers prior to persistence of the object.
